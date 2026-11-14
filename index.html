@@ -22,6 +22,21 @@ h1 { font-size:1.4rem; margin:0; } p { margin:0; } .sub,.note { color:var(--mute
 model-viewer { width:100%; height:58vh; min-height:320px; background:var(--card); border:1px solid var(--line); border-radius:10px; }
 #ar { position:absolute; left:50%; bottom:14px; transform:translateX(-50%); font:600 1rem var(--sans); padding:12px 22px; border:0; border-radius:8px; background:var(--accent); color:var(--bg); }
 #status { font-family:var(--mono); font-size:.85rem; color:var(--muted); }
+.layers { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:4px 14px; }
+.layers summary { font-weight:600; padding:10px 0; cursor:pointer; }
+.layers summary small { font-weight:400; color:var(--muted); margin-left:6px; }
+.lroot { border-top:1px solid var(--line); padding:10px 0; display:grid; gap:8px; }
+.lrow { display:grid; grid-template-columns:4.2rem 1fr; gap:6px 10px; align-items:start; }
+.lsubs { display:flex; flex-wrap:wrap; gap:6px; }
+.pill { display:inline-flex; align-items:center; gap:6px; font-size:.9rem; padding:6px 10px; border-radius:999px; border:1.5px solid var(--accent); color:var(--accent); cursor:pointer; user-select:none; }
+.pill input { position:absolute; opacity:0; pointer-events:none; }
+.pill:has(input:checked) { background:var(--accent); color:var(--bg); }
+.pill:has(input:indeterminate) { background:color-mix(in srgb, var(--accent) 35%, transparent); color:var(--fg); }
+.pill:has(input:focus-visible) { outline:2px solid var(--fg); outline-offset:2px; }
+.pill small { font-family:var(--mono); font-size:.75rem; opacity:.8; }
+.lroot > .pill { justify-self:start; font-weight:600; }
+.lbtns { display:flex; gap:8px; padding:4px 0 10px; }
+.lbtns button { font:600 .85rem var(--sans); padding:6px 12px; border-radius:6px; border:1px solid var(--line); background:transparent; color:var(--fg); }
 ol { display:grid; gap:6px; padding-left:1.2rem; margin:0; }
 .red { color:var(--red); font-weight:600 } .blue { color:var(--blue); font-weight:600 }
 </style>
@@ -38,17 +53,21 @@ ol { display:grid; gap:6px; padding-left:1.2rem; margin:0; }
     <button id="free" aria-pressed="false">Free size in AR</button>
     <button id="land" aria-pressed="true">Start at stair landing</button>
   </div>
-  <model-viewer id="mv" camera-controls min-camera-orbit="auto 0deg 0.1m" max-camera-orbit="auto 180deg auto" min-field-of-view="20deg" ar ar-modes="webxr scene-viewer" ar-scale="fixed" ar-placement="floor" shadow-intensity="0.6" exposure="1">
+  <model-viewer id="mv" loading="eager" camera-controls min-camera-orbit="auto 0deg 0.1m" max-camera-orbit="auto 180deg auto" min-field-of-view="20deg" ar ar-modes="webxr scene-viewer" ar-scale="fixed" ar-placement="floor" shadow-intensity="0.6" exposure="1">
     <button slot="ar-button" id="ar">View in AR</button>
   </model-viewer>
   <p id="status">loading…</p>
+  <details class="layers" id="layers"><summary>Layers <small id="lsum"></small></summary>
+    <div class="lbtns"><button id="lall">Show all</button><button id="lnone">Services only</button></div>
+    <div id="ltree"></div>
+  </details>
   <ol>
     <li>Stand on the bare slab of the floor you opened; move the phone until it finds the floor.</li>
     <li>The <span class="red">red pole</span> marks the outer SW corner of the SW column (same column on every floor).</li>
     <li>Drag / twist until the pole sits on that corner, the <span class="red">red bar</span> along the column's S face (east) and the <span class="blue">blue bar</span> along its W face (north).</li>
     <li>Expect 10–30 cm drift; re-align on each floor.</li>
   </ol>
-  <p class="note">The 3D view opens standing on the stair landing (top of the stair from below; basement: foot of the stair); drag to look around, pinch out to leave. Off site: "Ceiling off" removes the slab above (look in from above, or drag up close in the 3D view); "Free size in AR" lets you pinch to shrink / enlarge the model. Leave both off on site for the true 1:1 model. Needs Chrome on Android with "Google Play Services for AR" installed (Play Store). Open this page in Chrome itself, not inside another app's browser.</p>
+  <p class="note">The 3D view opens standing on the stair landing (top of the stair from below; basement: foot of the stair); drag to look around, pinch out to leave. Off site: "Ceiling off" removes the slab above (look in from above, or drag up close in the 3D view); "Free size in AR" lets you pinch to shrink / enlarge the model. Leave both off on site for the true 1:1 model. "Layers" hides / shows the model's collections as in Blender (house per floor: concrete, masonry, ETICS, openings, ceilings, stairs; MVHR and fan coils per floor and part type); your choice is kept when you change floor and also applies in AR. Needs Chrome on Android with "Google Play Services for AR" installed (Play Store). Open this page in Chrome itself, not inside another app's browser.</p>
 </main>
 <script>
 // landing viewpoints (model frame, metres: x = E of the anchor column, y = up from that floor's bare slab, z = -(N of the anchor)),
@@ -84,6 +103,66 @@ mv.addEventListener('ar-status', e => st.textContent = 'AR: ' + e.detail.status)
 tog('open', () => open, v => { open = v; try { localStorage.setItem('open', v ? '1' : '0'); } catch (e) {} pick(cur); });
 tog('free', () => free, v => { free = v; try { localStorage.setItem('free', v ? '1' : '0'); } catch (e) {} apply(); });
 tog('land', () => landing, v => { landing = v; view(); });
+
+// layers (owner 14/11): material names 'root|collection|sub-collection|n' (ar_export.py) -> hide = alpha 0 + MASK (public material API,
+// so it also holds in WebXR AR); ground shadow off while anything is hidden (hidden objects would still cast it)
+const ROOTS = {HOUSE:'House', HRV:'MVHR', HC:'Fan coils', MARKER:'Anchor'}, CORDER = ['BS','GF','F1','AT','ROOF','Anchor'];
+let hidden = new Set(); try { hidden = new Set(JSON.parse(localStorage.getItem('hidden') || '[]')); } catch (e) {}
+const orig = new WeakMap(), ltree = document.getElementById('ltree'), lsum = document.getElementById('lsum');
+const key = m => m.name.split('|').slice(0, 3).join('|');
+const isOff = k => hidden.has(k);   // leaf keys only ('root|collection|sub'); parents derived
+function applyLayers() {
+  const mats = mv.model?.materials || [];
+  let n = 0;
+  for (const m of mats) {
+    if (!m.name.includes('|')) continue;
+    if (!orig.has(m)) orig.set(m, {a: m.getAlphaMode(), c: [...m.pbrMetallicRoughness.baseColorFactor]});
+    const o = orig.get(m), off = isOff(key(m));
+    if (off) { n++; m.setAlphaMode('MASK'); m.setAlphaCutoff(0.5); m.pbrMetallicRoughness.setBaseColorFactor([o.c[0], o.c[1], o.c[2], 0]); }
+    else { m.setAlphaMode(o.a); m.pbrMetallicRoughness.setBaseColorFactor(o.c); }
+  }
+  mv.setAttribute('shadow-intensity', n ? '0' : '0.6');
+  lsum.textContent = n ? `${n} of ${mats.length} objects hidden` : 'all shown';
+  try { localStorage.setItem('hidden', JSON.stringify([...hidden])); } catch (e) {}
+  syncBoxes();
+}
+const leaves = k => leafKeys.filter(x => x === k || x.startsWith(k + '|'));
+function setOff(k, off) { for (const l of leaves(k)) off ? hidden.add(l) : hidden.delete(l); applyLayers(); }
+let leafKeys = [];
+const pill = (k, label, count) => { const l = document.createElement('label'); l.className = 'pill';
+  l.innerHTML = `<input type="checkbox" data-k="${k}"> ${label}${count ? ` <small>${count}</small>` : ''}`;
+  l.querySelector('input').onchange = e => setOff(k, !e.target.checked); return l; };
+function buildLayers() {
+  const cnt = {};
+  for (const m of mv.model?.materials || []) if (m.name.includes('|')) { const k = key(m); cnt[k] = (cnt[k] || 0) + 1; }
+  const tree = {};
+  for (const k of Object.keys(cnt)) { const [r, c, s] = k.split('|'); ((tree[r] ??= {})[c] ??= []).push(s); }
+  const flo = c => { const i = CORDER.indexOf(c.replace(/^(HRV|HC) /, '')); return i < 0 ? 99 : i; };
+  leafKeys = []; ltree.innerHTML = '';
+  for (const r of Object.keys(ROOTS).filter(r => tree[r])) {
+    const box = document.createElement('div'); box.className = 'lroot';
+    const tot = Object.entries(cnt).filter(([k]) => k.startsWith(r + '|')).reduce((a, [, v]) => a + v, 0);
+    box.appendChild(pill(r, ROOTS[r], tot));
+    for (const c of Object.keys(tree[r]).sort((a, b) => flo(a) - flo(b))) {
+      const row = document.createElement('div'); row.className = 'lrow';
+      const ck = `${r}|${c}`;
+      if (r !== 'MARKER') { row.appendChild(pill(ck, c.replace(/^(HRV|HC) /, ''), 0));
+        const subs = document.createElement('div'); subs.className = 'lsubs';
+        for (const s of tree[r][c].sort()) { leafKeys.push(`${ck}|${s}`); subs.appendChild(pill(`${ck}|${s}`, s, cnt[`${ck}|${s}`])); }
+        row.appendChild(subs); box.appendChild(row); }
+      else leafKeys.push(`${ck}|${tree[r][c][0]}`);
+    }
+    ltree.appendChild(box);
+  }
+  applyLayers();
+}
+function syncBoxes() {
+  ltree.querySelectorAll('input').forEach(i => { const ls = leaves(i.dataset.k), offs = ls.filter(isOff).length;
+    i.checked = offs === 0; i.indeterminate = offs > 0 && offs < ls.length; });
+}
+document.getElementById('lall').onclick = () => { hidden.clear(); applyLayers(); };
+document.getElementById('lnone').onclick = () => { for (const l of leafKeys) if (l.startsWith('HOUSE|')) hidden.add(l); applyLayers(); };
+mv.addEventListener('load', buildLayers);
 apply();
 const k = FLOORS.findIndex(f => f[0] === location.hash.slice(1)); pick(k < 0 ? 1 : k);
 </script>
