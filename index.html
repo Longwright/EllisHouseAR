@@ -15,6 +15,18 @@
 body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--sans); font-size:16px; line-height:1.5;
   padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px)); padding-block:16px 40px; }
 main { max-width:40rem; margin:0 auto; display:grid; gap:16px; }
+.side { display:contents; }                 /* phone: one column, viewer between the controls and the layers */
+.side > header { order:0 } #chips { order:1 } #opts { order:2 } .stage { order:3 } #status { order:4 } .layers { order:5 } .help { order:6 }
+.stage { position:relative; }
+.help { display:grid; gap:12px; }
+@media (min-width: 900px) {                 /* wide screen: online 3D viewer, model fills the window, controls in a side panel */
+  body { padding:0; height:100vh; overflow:hidden; }
+  main { max-width:none; height:100vh; grid-template-columns:minmax(0,1fr) 25rem; gap:0; }
+  .stage { height:100vh; order:0; }
+  .stage model-viewer { height:100%; min-height:0; border:0; border-radius:0; }
+  .side { order:1; height:100vh; box-sizing:border-box; display:flex; flex-direction:column; gap:16px; overflow-y:auto; padding:20px; border-left:1px solid var(--line); }
+  .layers[open] { flex:none; }
+}
 h1 { font-size:1.4rem; margin:0; } p { margin:0; } .sub,.note { color:var(--muted); } .note { font-size:.9rem; }
 .chips { display:flex; gap:8px; flex-wrap:wrap; }
 .chips button { font:600 .95rem var(--sans); padding:10px 14px; border-radius:999px; border:1.5px solid var(--accent); background:transparent; color:var(--accent); }
@@ -43,31 +55,36 @@ ol { display:grid; gap:6px; padding-left:1.2rem; margin:0; }
 </head>
 <body>
 <main>
-  <header style="display:grid;gap:4px">
-    <h1>House in AR</h1>
-    <p class="sub">Shell with MVHR and fan coils, 1:1. Pick a floor, wait for the 3D view, then tap "View in AR".</p>
-  </header>
-  <div class="chips" id="chips"></div>
-  <div class="chips">
-    <button id="open" aria-pressed="false">Ceiling off</button>
-    <button id="free" aria-pressed="false">Free size in AR</button>
-    <button id="land" aria-pressed="true">Start at stair landing</button>
+  <div class="stage">
+    <model-viewer id="mv" loading="eager" camera-controls min-camera-orbit="auto 0deg 0.1m" max-camera-orbit="auto 180deg auto" min-field-of-view="20deg" ar ar-modes="webxr scene-viewer" ar-scale="fixed" ar-placement="floor" shadow-intensity="0.6" exposure="1">
+      <button slot="ar-button" id="ar">View in AR</button>
+    </model-viewer>
   </div>
-  <model-viewer id="mv" loading="eager" camera-controls min-camera-orbit="auto 0deg 0.1m" max-camera-orbit="auto 180deg auto" min-field-of-view="20deg" ar ar-modes="webxr scene-viewer" ar-scale="fixed" ar-placement="floor" shadow-intensity="0.6" exposure="1">
-    <button slot="ar-button" id="ar">View in AR</button>
-  </model-viewer>
-  <p id="status">loading…</p>
-  <details class="layers" id="layers"><summary>Layers <small id="lsum"></small></summary>
-    <div class="lbtns"><button id="lall">Show all</button><button id="lnone">Services only</button></div>
-    <div id="ltree"></div>
-  </details>
-  <ol>
-    <li>Stand on the bare slab of the floor you opened; move the phone until it finds the floor.</li>
-    <li>The <span class="red">red pole</span> marks the outer SW corner of the SW column (same column on every floor).</li>
-    <li>Drag / twist until the pole sits on that corner, the <span class="red">red bar</span> along the column's S face (east) and the <span class="blue">blue bar</span> along its W face (north).</li>
-    <li>Expect 10–30 cm drift; re-align on each floor.</li>
-  </ol>
-  <p class="note">The 3D view opens standing on the stair landing (top of the stair from below; basement: foot of the stair); drag to look around, pinch out to leave. Off site: "Ceiling off" removes the slab above (look in from above, or drag up close in the 3D view); "Free size in AR" lets you pinch to shrink / enlarge the model. Leave both off on site for the true 1:1 model. "Layers" hides / shows the model's collections as in Blender (house per floor: concrete, masonry, ETICS, openings, ceilings, stairs; MVHR and fan coils per floor and part type); your choice is kept when you change floor and also applies in AR. Needs Chrome on Android with "Google Play Services for AR" installed (Play Store). Open this page in Chrome itself, not inside another app's browser.</p>
+  <aside class="side">
+    <header style="display:grid;gap:4px">
+      <h1>House in AR</h1>
+      <p class="sub">Shell with MVHR and fan coils, 1:1. Pick a floor and look around; on an Android phone tap "View in AR".</p>
+    </header>
+    <div class="chips" id="chips"></div>
+    <div class="chips" id="opts">
+      <button id="free" aria-pressed="false">Free size in AR</button>
+      <button id="land" aria-pressed="true">Start at stair landing</button>
+    </div>
+    <p id="status">loading…</p>
+    <details class="layers" id="layers"><summary>Layers <small id="lsum"></small></summary>
+      <div class="lbtns"><button id="lall">Show all</button><button id="lnone">Services only</button></div>
+      <div id="ltree"></div>
+    </details>
+    <div class="help">
+      <ol>
+        <li>Stand on the bare slab of the floor you opened; move the phone until it finds the floor.</li>
+        <li>The <span class="red">red pole</span> marks the outer SW corner of the SW column (same column on every floor).</li>
+        <li>Drag / twist until the pole sits on that corner, the <span class="red">red bar</span> along the column's S face (east) and the <span class="blue">blue bar</span> along its W face (north).</li>
+        <li>Expect 10–30 cm drift; re-align on each floor.</li>
+      </ol>
+      <p class="note">The 3D view opens standing on the stair landing (top of the stair from below; basement: foot of the stair); drag to look around, scroll / pinch out to leave. "Layers" hides / shows the model's collections as in Blender (house per floor: concrete, masonry, ETICS, openings, ceilings, stairs, floor fill; MVHR and fan coils per floor and part type); to look in from above, hide the floor above (e.g. on Ground: House › F1). The floor fill is hidden at first, so on site the model stands on the bare slab. Your choice is kept when you change floor and also applies in AR. "Free size in AR" lets you pinch to shrink / enlarge the model; leave it off on site for the true 1:1 model. AR needs Chrome on Android with "Google Play Services for AR" installed (Play Store); open this page in Chrome itself, not inside another app's browser.</p>
+    </div>
+  </aside>
 </main>
 <script>
 // landing viewpoints (model frame, metres: x = E of the anchor column, y = up from that floor's bare slab, z = -(N of the anchor)),
@@ -82,9 +99,9 @@ function view() {
   mv.jumpCameraToGoal();
 }
 const mv = document.getElementById('mv'), st = document.getElementById('status'), chips = document.getElementById('chips');
-let cur = 1, open = false, free = false;
-try { open = localStorage.getItem('open') === '1'; free = localStorage.getItem('free') === '1'; } catch (e) {}
-const url = c => `m/HouseEM_AR_${c}${open && c !== 'ALL' ? '_open' : ''}.glb`;
+let cur = 1, free = false;
+try { free = localStorage.getItem('free') === '1'; } catch (e) {}
+const url = c => `m/HouseEM_AR_${c}.glb`;
 const tog = (id, get, set) => { const b = document.getElementById(id);
   const show = () => b.setAttribute('aria-pressed', get());
   b.onclick = () => { set(!get()); show(); }; show(); };
@@ -100,14 +117,15 @@ FLOORS.forEach(([c, n], i) => { const b = document.createElement('button'); b.te
 mv.addEventListener('load', () => { view(); }); mv.addEventListener('load', () => st.textContent = `loaded · AR available: ${mv.canActivateAR ? 'yes' : 'no (ARCore / Chrome needed)'}`);
 mv.addEventListener('error', e => st.textContent = 'could not load the model: ' + (e.detail?.type || 'error'));
 mv.addEventListener('ar-status', e => st.textContent = 'AR: ' + e.detail.status);
-tog('open', () => open, v => { open = v; try { localStorage.setItem('open', v ? '1' : '0'); } catch (e) {} pick(cur); });
 tog('free', () => free, v => { free = v; try { localStorage.setItem('free', v ? '1' : '0'); } catch (e) {} apply(); });
 tog('land', () => landing, v => { landing = v; view(); });
 
 // layers (owner 14/11): material names 'root|collection|sub-collection|n' (ar_export.py) -> hide = alpha 0 + MASK (public material API,
 // so it also holds in WebXR AR); ground shadow off while anything is hidden (hidden objects would still cast it)
 const ROOTS = {HOUSE:'House', HRV:'MVHR', HC:'Fan coils', MARKER:'Anchor'}, CORDER = ['BS','GF','F1','AT','ROOF','Anchor'];
-let hidden = new Set(); try { hidden = new Set(JSON.parse(localStorage.getItem('hidden') || '[]')); } catch (e) {}
+let hidden = new Set(), seen = new Set();
+try { hidden = new Set(JSON.parse(localStorage.getItem('hidden') || '[]')); seen = new Set(JSON.parse(localStorage.getItem('seen') || '[]')); } catch (e) {}
+const DEFAULT_OFF = k => k.endsWith('|Fill');   // floor fill: not built yet on site, hidden until shown
 const orig = new WeakMap(), ltree = document.getElementById('ltree'), lsum = document.getElementById('lsum');
 const key = m => m.name.split('|').slice(0, 3).join('|');
 const isOff = k => hidden.has(k);   // leaf keys only ('root|collection|sub'); parents derived
@@ -123,7 +141,7 @@ function applyLayers() {
   }
   mv.setAttribute('shadow-intensity', n ? '0' : '0.6');
   lsum.textContent = n ? `${n} of ${mats.length} objects hidden` : 'all shown';
-  try { localStorage.setItem('hidden', JSON.stringify([...hidden])); } catch (e) {}
+  try { localStorage.setItem('hidden', JSON.stringify([...hidden])); localStorage.setItem('seen', JSON.stringify([...seen])); } catch (e) {}
   syncBoxes();
 }
 const leaves = k => leafKeys.filter(x => x === k || x.startsWith(k + '|'));
@@ -139,6 +157,7 @@ function buildLayers() {
   for (const k of Object.keys(cnt)) { const [r, c, s] = k.split('|'); ((tree[r] ??= {})[c] ??= []).push(s); }
   const flo = c => { const i = CORDER.indexOf(c.replace(/^(HRV|HC) /, '')); return i < 0 ? 99 : i; };
   leafKeys = []; ltree.innerHTML = '';
+  for (const k of Object.keys(cnt)) if (!seen.has(k)) { seen.add(k); if (DEFAULT_OFF(k)) hidden.add(k); }
   for (const r of Object.keys(ROOTS).filter(r => tree[r])) {
     const box = document.createElement('div'); box.className = 'lroot';
     const tot = Object.entries(cnt).filter(([k]) => k.startsWith(r + '|')).reduce((a, [, v]) => a + v, 0);
@@ -163,6 +182,7 @@ function syncBoxes() {
 document.getElementById('lall').onclick = () => { hidden.clear(); applyLayers(); };
 document.getElementById('lnone').onclick = () => { for (const l of leafKeys) if (l.startsWith('HOUSE|')) hidden.add(l); applyLayers(); };
 mv.addEventListener('load', buildLayers);
+if (matchMedia('(min-width: 900px)').matches) document.getElementById('layers').open = true;
 apply();
 const k = FLOORS.findIndex(f => f[0] === location.hash.slice(1)); pick(k < 0 ? 1 : k);
 </script>
